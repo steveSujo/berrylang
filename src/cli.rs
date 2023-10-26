@@ -21,25 +21,6 @@ fn parse_args() -> ArgsCli {
     let mut output_file: Option<OsString> = None;
     let arg_vec: Vec<OsString>;
 
-    // match raw_args.iter().position(|x| x == "-i" || x == "--input") {
-    //     Some(index) => {
-    //         arg_input = Some(raw_args[index + 1].to_owned());
-    //         raw_args.remove(index);
-    //         raw_args.remove(index + 1);
-    //         // filtering the arg vector
-    //     }
-    //     None => arg_input = None,
-    // }
-
-    // match raw_args.iter().position(|x| x == "-o" || x == "--output") {
-    //     Some(index) => {
-    //         arg_output = Some(raw_args[index + 1].to_owned());
-    //         raw_args.remove(index);
-    //         raw_args.remove(index + 1);
-    //         // filtering the arg vector
-    //     }
-    //     None => arg_output = None,
-    // }
     let mut clone_raw = raw_args.clone();
     raw_args.iter().enumerate().for_each(|(i, arg)| {
         match arg.to_str().unwrap() {
@@ -113,18 +94,11 @@ build               :!!todo();
     Ok(())
 }
 
-/// .
-///
-/// # Panics
-///
-/// Panics if .
+// code interpreter for the dev env
 fn run_cmd(
     args: &ArgsCli,
     mut stdout: impl std::io::Write,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // write!(stdout, "TO IMPLIMENT!!").expect("unexpected stdio error");
-    // write!(stderr, "TO IMPLIMENT!!").expect("unexpected stdio error");
-
     let mut input = File::open(args.input_file.as_ref().unwrap()).expect("Couldn't open file");
     let mut contents = String::new();
 
@@ -137,8 +111,9 @@ fn run_cmd(
 
     Ok(())
 }
-
+// compiles the code into a exe
 // fn build_cmd() {
 //     todo!()
 // }
+
 //TODO impl build cmd
