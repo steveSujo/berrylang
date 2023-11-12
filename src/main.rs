@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let file = File::open("/home/steve/source/rust/berry/tests/test.txt")?;
 
-    parse(file, &mut std::io::stdout());
+    // parse(file, &mut std::io::stdout());
 
     Ok(())
 }
