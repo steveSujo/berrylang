@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     fmt::{self, write},
     fs::File,
     io::Read,
@@ -14,6 +15,8 @@ enum Tokens {
     BlockDlimit(Block),
     Identifier(String),
     Operator(char),
+    ExprLeft(Box<Tokens>),
+    ExprRight(Box<Tokens>),
 }
 impl Default for Tokens {
     fn default() -> Self {
@@ -29,6 +32,8 @@ impl std::fmt::Display for Tokens {
             Tokens::BlockDlimit(x) => write!(f, "blockdlimt toke {x}"),
             Tokens::Identifier(x) => write!(f, "ident toke {x}"),
             Tokens::Operator(x) => write!(f, "oprator toke {x}"),
+            Tokens::ExprLeft(x) => write!(f, "left exp toke: {x}"),
+            Tokens::ExprRight(x) => write!(f, "right exp toke: {x}"),
         }
     }
 }
@@ -36,11 +41,6 @@ impl std::fmt::Display for Tokens {
 enum Block {
     Open(char),
     Close(char),
-}
-#[derive(Clone, Debug)]
-enum Expr {
-    Left(char),
-    Right(char),
 }
 
 impl std::fmt::Display for Block {
@@ -63,15 +63,69 @@ pub fn parse(mut contents: String) {
 
     tree = tokenize(tree, contents);
     // println!("{:#?}", tree);
-    let new = tree_eval(tree);
+    let ast = ast_eval(tree);
+    let val = interpret(ast).unwrap();
+    println!("\nVAl:: {}\n", val);
     // write!(writer, "{:#?}\n", new_string).unwrap();
 }
 
-fn tree_eval(tree: HashTree<Tokens>) -> HashTree<Tokens> {
+fn interpret(ast: HashTree<Tokens>) -> Result<i64, String> {
+    let mut val: i64 = 0;
+    let binding = ast.dfs_iter().unwrap();
+    let mut iter = binding.iter().peekable();
+    while let Some(node) = iter.peek() {
+        if let Tokens::Operator(x) = node.data {
+            match x {
+                '+' => {
+                    let children = ast.child_iter(node.index).unwrap();
+                    for c in children {
+                        if let Tokens::ExprLeft(left) = &c.data {
+                            if let Tokens::Int(x) = **left {
+                                val += x
+                            }
+                        }
+                        if let Tokens::ExprRight(right) = &c.data {
+                            if let Tokens::Int(x) = **right {
+                                val += x
+                            }
+                        }
+                    }
+                }
+
+                '*' => {
+                    let children = ast.child_iter(node.index).unwrap();
+                    let mut temp_val: i64 = 0;
+                    for c in children {
+                        if let Tokens::ExprLeft(left) = &c.data {
+                            if let Tokens::Int(l) = **left {
+                                temp_val = l;
+                            }
+                        } else if let Tokens::ExprRight(right) = &c.data {
+                            if let Tokens::Int(r) = **right {
+                                temp_val *= r;
+                            }
+                        }
+                        // if let Tokens::ExprRight(right) = &c.data {
+                        //     if let Tokens::Int(x) = **right {}
+                        // }
+                    }
+                    val = temp_val;
+                }
+                _ => {
+                    iter.next();
+                }
+            };
+        }
+        iter.next();
+    }
+    Ok(val)
+}
+
+fn ast_eval(tree: HashTree<Tokens>) -> HashTree<Tokens> {
     let mut tokens = tree.child_iter(0).unwrap().peekable();
     let mut statement_tree = HashTree::<Tokens>::from(Tokens::Root);
-    let mut child: Vec<&Node<Tokens>> = Vec::new();
-    // let mut child: Vec<NodeIndex> = Vec::new();
+    // let mut child: Vec<&Node<Tokens>> = Vec::new();
+    let mut child: Vec<NodeIndex> = Vec::new();
 
     //TODO probably Match is better
     // optimize this
@@ -79,65 +133,61 @@ fn tree_eval(tree: HashTree<Tokens>) -> HashTree<Tokens> {
     while let Some(&token) = tokens.peek() {
         if let Tokens::StateDlimit(x) = token.data {
             let parent = statement_tree.new_node(Tokens::StateDlimit(x), Some(0));
-            for &&c in child.iter() {
-                // statement_tree.new_node(tree.find_node(c).data.to_owned(), Some(parent));
-                statement_tree.insert_node(c, Some(parent));
+            for &c in child.iter() {
+                statement_tree.make_child(c, parent);
             }
             child.clear();
         } else if let Tokens::Operator(x) = token.data {
-            // let parent = statement_tree.new_node(token.data.to_owned(), Some(0));
-            let parent: Node<Tokens> = Node {
-                index: 0,
-                parent: None,
-                childern: vec![],
-                data: Tokens::Operator(x),
-                prev_sibling: None,
-                next_sibling: None,
-            };
-            if x == '+' {
-                statement_tree.new_node(child.last().unwrap().data.to_owned(), Some(parent));
-                child.clear();
-                tokens.next();
-                statement_tree.new_node(tokens.peek().unwrap().data.to_owned(), Some(parent));
+            let left = statement_tree.remove_node(*child.last().unwrap()).unwrap();
+            // println!("__token {:?}", left);
+            let parent = statement_tree.new_node(token.data.to_owned(), Some(0));
+            if left.childern.is_empty() {
+                if x == '+' {
+                    statement_tree.new_node(Tokens::ExprLeft(Box::new(left.data)), Some(parent));
+                    child.clear();
+                    tokens.next();
+                    statement_tree.new_node(
+                        Tokens::ExprRight(Box::new(tokens.peek().unwrap().data.to_owned())),
+                        Some(parent),
+                    );
+                } else if x == '*' {
+                    statement_tree.new_node(Tokens::ExprLeft(Box::new(left.data)), Some(parent));
+                    child.clear();
+                    tokens.next();
+                    statement_tree.new_node(
+                        Tokens::ExprRight(Box::new(tokens.peek().unwrap().data.to_owned())),
+                        Some(parent),
+                    );
+                }
+            } else {
+                if x == '*' {
+                    statement_tree.insert_node(left, Some(parent));
+                    child.clear();
+                    tokens.next();
+                    statement_tree.new_node(
+                        Tokens::ExprRight(Box::new(tokens.peek().unwrap().data.to_owned())),
+                        Some(parent),
+                    );
+                }
             }
-            child.push(&parent)
+            child.push(parent)
         } else {
-            child.push(token);
+            child.push(statement_tree.new_node(token.data.to_owned(), Some(0)));
         }
 
         tokens.next();
         // println!("{:#?}", token);
     }
 
-    // let mut expr_tree = &mut statement_tree;
-
-    // while let Some(token) = expr_tree.dfs_iter().unwrap().iter().peekable().peek() {
-    //     for &token in token.childern.iter() {
-    //         if let Tokens::Operator(x) = expr_tree.findmut_node(token).data {
-    //             let parent = expr_tree.new_node(Tokens::Operator(x), None);
-    //             if x == '+' {
-    //                 expr_tree.new_node(child.last().unwrap().data.to_owned(), Some(parent));
-    //                 child.clear();
-    //                 tokens.next();
-    //                 expr_tree.new_node(tokens.peek().unwrap().data.to_owned(), Some(parent));
-    //             }
-    //             child.push(statement_tree.find_node(parent));
-    //         }
-    //         // child.push(token);
-    //     }
-    // }
-
-    println!("{}", statement_tree);
-    println!("{:?}", statement_tree);
-    println!("{}", &tree);
+    // debug
+    println!(
+        "state tree: {}\nlen: {}",
+        statement_tree,
+        statement_tree.len()
+    );
+    println!("state tree DEBUG: {:?}\n", statement_tree);
+    // println!("token tree: {}\nlen: {}", &tree, tree.len());
     statement_tree
-    //     // match tree.find_node(token).data {
-    //     //     Tokens::StateDlimit(x) => {
-    //     //         if let Tokens::Operator(op) = tree.find_node(**tokens.peek().unwrap()).data {}
-    //     //     }
-    //     //     _ => todo!(),
-    //     // }
-    // }
 }
 //FIXME fun prog this tokenizer
 fn tokenize(mut tree: HashTree<Tokens>, contents: String) -> HashTree<Tokens> {
@@ -203,7 +253,11 @@ mod parser {
     // #[ignore = "not now"]
     #[test]
     fn parse_fn() {
-        let string = String::from("1+2;\n20*30;");
+        let mut string = String::from("111+20;");
+        parse(string);
+        string = String::from("20*2;");
+        parse(string);
+        string = String::from("1+2*2;");
         parse(string);
         // assert_eq!(ve, b"whatever");
     }

@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, ops::Index};
 
 #[derive(Default)]
 pub struct HashTree<T> {
@@ -47,12 +47,14 @@ where
         let index = self.nodes.len();
         let mut prev_sibling: Option<NodeIndex> = None;
 
-        if parent.is_some() {
-            if !self.nodes[parent.unwrap()].childern.is_empty() {
-                prev_sibling = self.nodes[parent.unwrap()].childern.last().copied();
-                self.nodes[prev_sibling.unwrap()].next_sibling = Some(index);
+        if let Some(parent) = parent {
+            if !self.find_node(parent).unwrap().childern.is_empty() {
+                prev_sibling = self.find_node(parent).unwrap().childern.last().copied();
+                self.findmut_node(prev_sibling.unwrap())
+                    .unwrap()
+                    .next_sibling = Some(index);
             };
-            self.nodes[parent.unwrap()].childern.push(index);
+            self.findmut_node(parent).unwrap().childern.push(index);
         }
 
         self.nodes.push(Node {
@@ -66,24 +68,52 @@ where
         index
     }
 
-    pub fn find_node(&self, index: usize) -> &Node<T> {
-        &self.nodes[index]
+    pub fn find_node(&self, index: usize) -> Option<&Node<T>> {
+        self.nodes.iter().find(|n| n.index == index)
     }
 
     //TODO panick cases
-    pub fn findmut_node(&mut self, index: usize) -> &mut Node<T> {
-        &mut self.nodes[index]
+    pub fn findmut_node(&mut self, index: usize) -> Option<&mut Node<T>> {
+        self.nodes.iter_mut().find(|n| n.index == index)
     }
 
-    pub fn remove_node(&mut self, index: usize) {
-        self.nodes.remove(index);
+    pub fn remove_node(&mut self, index: usize) -> Option<Node<T>> {
+        // update parent
+        let parent = self.nodes[index].parent.unwrap();
+        self.nodes[parent].childern = self.nodes[parent]
+            .childern
+            .iter()
+            .filter_map(|&i| match i != index {
+                true => Some(i),
+                false => None,
+            })
+            .collect();
+        // update sib
+        match (
+            self.nodes[index].next_sibling,
+            self.nodes[index].prev_sibling,
+        ) {
+            (None, None) => {}
+            (None, Some(prev)) => {
+                self.nodes[prev].next_sibling = None;
+            }
+            (Some(next), None) => {
+                self.nodes[next].prev_sibling = None;
+            }
+            (Some(next), Some(prev)) => {
+                self.nodes[prev].next_sibling = Some(next);
+                self.nodes[next].prev_sibling = Some(prev);
+            }
+        }
+
+        Some(self.nodes.remove(index))
     }
 
     pub fn child_iter(&self, index: usize) -> Option<impl Iterator<Item = &Node<T>>> {
         let children = self.nodes[index]
             .childern
             .iter()
-            .map(|&i| self.find_node(i));
+            .map(|&i| self.find_node(i).unwrap());
 
         Some(children)
     }
@@ -91,7 +121,7 @@ where
         let children = self.nodes[index]
             .childern
             .iter()
-            .map(|&i| self.find_node(i));
+            .map(|&i| self.find_node(i).unwrap());
 
         Some(children)
     }
@@ -101,7 +131,7 @@ where
             .childern
             .iter()
             .filter(move |&i| i != &index)
-            .map(|&i| self.find_node(i));
+            .map(|&i| self.find_node(i).unwrap());
 
         Some(children)
     }
@@ -111,7 +141,7 @@ where
             .childern
             .iter()
             .filter(move |&i| i != &index)
-            .map(|&i| self.find_node(i));
+            .map(|&i| self.find_node(i).unwrap());
 
         Some(children)
     }
@@ -119,22 +149,38 @@ where
     pub(crate) fn make_child(&mut self, index: usize, parent: usize) {
         // let mut tree = self;
 
-        self.nodes[index].parent = Some(parent);
+        let node = self.remove_node(index).unwrap();
+        self.new_node(node.data, Some(parent));
+        // self.nodes[index].parent = Some(parent);
+        // self.findmut_node(index).unwrap().parent = Some(parent);
 
-        self.nodes[index].prev_sibling = None;
-        self.nodes[index].next_sibling = None;
+        // self.nodes[index].prev_sibling = None;
+        // self.nodes[index].next_sibling = None;
 
-        self.nodes[parent].childern.push(index);
+        // self.nodes[parent].childern.push(index);
 
-        let last = self.nodes[parent].childern.last();
+        // let last = self.nodes[parent].childern.last();
 
-        if let Some(&last_index) = last {
-            self.nodes[last_index].next_sibling = Some(index);
-            self.nodes[index].prev_sibling = Some(last_index);
-        };
+        // if let Some(&last_index) = last {
+        //     self.nodes[last_index].next_sibling = Some(index);
+        //     self.nodes[index].prev_sibling = Some(last_index);
+        // };
     }
     pub fn insert_node(&mut self, mut node: Node<T>, parent: Option<NodeIndex>) {
-        node.parent = parent;
+        if let Some(old_parent) = node.parent {
+            self.remove_node(node.index);
+        }
+        if let Some(parent) = parent {
+            node.parent = Some(parent);
+            self.nodes[parent].childern.push(node.index);
+
+            self.nodes[node.index].prev_sibling = None;
+            self.nodes[node.index].next_sibling = None;
+            if let Some(&last_index) = self.nodes[parent].childern.last() {
+                self.nodes[last_index].next_sibling = Some(node.index);
+                self.nodes[node.index].prev_sibling = Some(last_index);
+            };
+        }
         self.nodes.push(node);
     }
     pub(crate) fn len(&self) -> usize {
@@ -160,7 +206,7 @@ where
 
         let list = depth
             .iter()
-            .map(|&f| self.find_node(f))
+            .map(|&f| self.find_node(f).unwrap())
             .collect::<Vec<&Node<T>>>();
 
         Some(list)
@@ -168,7 +214,7 @@ where
     pub fn nodes(&self) -> Option<&Vec<Node<T>>> {
         Some(&self.nodes)
     }
-    pub fn clear(&self) {
+    pub fn clear(&mut self) {
         self.nodes.clear();
     }
     pub fn apend(&self, subtree: HashTree<T>, parent: usize) {}
@@ -256,7 +302,9 @@ mod hashtree {
         assert_eq!(tree.child_iter(0).unwrap().last().unwrap().data, TESTSET[2]);
 
         assert_eq!(
-            tree.find_node(tree.find_node(1).next_sibling.unwrap()).data,
+            tree.find_node(tree.find_node(1).unwrap().next_sibling.unwrap())
+                .unwrap()
+                .data,
             tree.child_iter(0).unwrap().last().unwrap().data
         );
     }
@@ -325,7 +373,7 @@ mod hashtree {
             tree.new_node(TESTSET[i], Some(i - 1));
         }
 
-        println!("{}", tree);
-        println!("{:?}\n", tree);
+        // println!("{}", tree);
+        // println!("{:?}\n", tree);
     }
 }
