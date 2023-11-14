@@ -7,7 +7,7 @@ use std::{
 
 use crate::hashtree::{HashTree, Node, NodeIndex};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 enum Tokens {
     Root,
     Int(i64),
@@ -37,7 +37,7 @@ impl std::fmt::Display for Tokens {
         }
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash)]
 enum Block {
     Open(char),
     Close(char),
@@ -53,7 +53,7 @@ impl std::fmt::Display for Block {
 }
 // pub fn parse(mut file: File, mut writer: impl std::io::Write) {
 pub fn parse(mut contents: String) {
-    let mut tree = HashTree::<Tokens>::from(Tokens::Root);
+    let (mut tree, root_hash) = HashTree::<Tokens>::from(Tokens::Root);
 
     // let mut contents = String::new();
 
@@ -61,7 +61,7 @@ pub fn parse(mut contents: String) {
 
     // write!(writer, "{:#?}", contents).unwrap();
 
-    tree = tokenize(tree, contents);
+    tree = tokenize(tree, root_hash, contents);
     // println!("{:#?}", tree);
     let ast = ast_eval(tree);
     let val = interpret(ast).unwrap();
@@ -123,7 +123,7 @@ fn interpret(ast: HashTree<Tokens>) -> Result<i64, String> {
 
 fn ast_eval(tree: HashTree<Tokens>) -> HashTree<Tokens> {
     let mut tokens = tree.child_iter(0).unwrap().peekable();
-    let mut statement_tree = HashTree::<Tokens>::from(Tokens::Root);
+    let (mut statement_tree, root_hash) = HashTree::<Tokens>::from(Tokens::Root);
     // let mut child: Vec<&Node<Tokens>> = Vec::new();
     let mut child: Vec<NodeIndex> = Vec::new();
 
@@ -139,6 +139,7 @@ fn ast_eval(tree: HashTree<Tokens>) -> HashTree<Tokens> {
             child.clear();
         } else if let Tokens::Operator(x) = token.data {
             let left = statement_tree.remove_node(*child.last().unwrap()).unwrap();
+
             // println!("__token {:?}", left);
             let parent = statement_tree.new_node(token.data.to_owned(), Some(0));
             if left.childern.is_empty() {
@@ -190,7 +191,7 @@ fn ast_eval(tree: HashTree<Tokens>) -> HashTree<Tokens> {
     statement_tree
 }
 //FIXME fun prog this tokenizer
-fn tokenize(mut tree: HashTree<Tokens>, contents: String) -> HashTree<Tokens> {
+fn tokenize(mut tree: HashTree<Tokens>, root_hash: u64, contents: String) -> HashTree<Tokens> {
     let mut text = contents.chars().peekable();
 
     while let Some(&x) = text.peek() {
@@ -208,29 +209,29 @@ fn tokenize(mut tree: HashTree<Tokens>, contents: String) -> HashTree<Tokens> {
                     }
                 }
                 if let Ok(int) = num.parse::<i64>() {
-                    tree.new_node(Tokens::Int(int), Some(0));
+                    tree.new_node(Tokens::Int(int), Some(root_hash));
                 } else {
                     panic!("int parser error");
                 }
             }
             //tokenize aritmetirc operator
             '*' | '/' | '+' | '-' => {
-                tree.new_node(Tokens::Operator(x), Some(0));
+                tree.new_node(Tokens::Operator(x), Some(root_hash));
                 text.next();
             }
             // Blocks
             '(' | '<' | '{' => {
-                tree.new_node(Tokens::BlockDlimit(Block::Open(x)), Some(0));
+                tree.new_node(Tokens::BlockDlimit(Block::Open(x)), Some(root_hash));
                 text.next();
             }
             ')' | '>' | '}' => {
-                tree.new_node(Tokens::BlockDlimit(Block::Close(x)), Some(0));
+                tree.new_node(Tokens::BlockDlimit(Block::Close(x)), Some(root_hash));
                 text.next();
             }
 
             // Dlmit
             ';' => {
-                tree.new_node(Tokens::StateDlimit(x), Some(0));
+                tree.new_node(Tokens::StateDlimit(x), Some(root_hash));
                 text.next();
             }
             _ => {

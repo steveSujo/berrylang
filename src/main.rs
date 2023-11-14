@@ -1,3 +1,5 @@
+// #![feature(test)]
+
 use std::fs::File;
 
 use parse::parse;
