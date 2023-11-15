@@ -21,7 +21,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 tree.new_node(i, Some(HashTree::<isize>::hasher_boi(&(i - 1))));
             }
         }
-        b.iter(|| tree.find_node(HashTree::<isize>::hasher_boi(&black_box(100))))
+        b.iter(|| tree.get(HashTree::<isize>::hasher_boi(&black_box(100))))
     });
 }
 

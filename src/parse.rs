@@ -71,53 +71,53 @@ pub fn parse(mut contents: String) {
 
 fn interpret(ast: HashTree<Tokens>) -> Result<i64, String> {
     let mut val: i64 = 0;
-    let binding = ast.dfs_iter().unwrap();
-    let mut iter = binding.iter().peekable();
-    while let Some(node) = iter.peek() {
-        if let Tokens::Operator(x) = node.data {
-            match x {
-                '+' => {
-                    let children = ast.child_iter(node.index).unwrap();
-                    for c in children {
-                        if let Tokens::ExprLeft(left) = &c.data {
-                            if let Tokens::Int(x) = **left {
-                                val += x
-                            }
-                        }
-                        if let Tokens::ExprRight(right) = &c.data {
-                            if let Tokens::Int(x) = **right {
-                                val += x
-                            }
-                        }
-                    }
-                }
+    // let binding = ast.dfs_iter().unwrap();
+    // let mut iter = binding.iter().peekable();
+    // while let Some(node) = iter.peek() {
+    //     if let Tokens::Operator(x) = node.data {
+    //         match x {
+    //             '+' => {
+    //                 let children = ast.child_iter(node.index).unwrap();
+    //                 for c in children {
+    //                     if let Tokens::ExprLeft(left) = &c.data {
+    //                         if let Tokens::Int(x) = **left {
+    //                             val += x
+    //                         }
+    //                     }
+    //                     if let Tokens::ExprRight(right) = &c.data {
+    //                         if let Tokens::Int(x) = **right {
+    //                             val += x
+    //                         }
+    //                     }
+    //                 }
+    //             }
 
-                '*' => {
-                    let children = ast.child_iter(node.index).unwrap();
-                    let mut temp_val: i64 = 0;
-                    for c in children {
-                        if let Tokens::ExprLeft(left) = &c.data {
-                            if let Tokens::Int(l) = **left {
-                                temp_val = l;
-                            }
-                        } else if let Tokens::ExprRight(right) = &c.data {
-                            if let Tokens::Int(r) = **right {
-                                temp_val *= r;
-                            }
-                        }
-                        // if let Tokens::ExprRight(right) = &c.data {
-                        //     if let Tokens::Int(x) = **right {}
-                        // }
-                    }
-                    val = temp_val;
-                }
-                _ => {
-                    iter.next();
-                }
-            };
-        }
-        iter.next();
-    }
+    //             '*' => {
+    //                 let children = ast.child_iter(node.index).unwrap();
+    //                 let mut temp_val: i64 = 0;
+    //                 for c in children {
+    //                     if let Tokens::ExprLeft(left) = &c.data {
+    //                         if let Tokens::Int(l) = **left {
+    //                             temp_val = l;
+    //                         }
+    //                     } else if let Tokens::ExprRight(right) = &c.data {
+    //                         if let Tokens::Int(r) = **right {
+    //                             temp_val *= r;
+    //                         }
+    //                     }
+    //                     // if let Tokens::ExprRight(right) = &c.data {
+    //                     //     if let Tokens::Int(x) = **right {}
+    //                     // }
+    //                 }
+    //                 val = temp_val;
+    //             }
+    //             _ => {
+    //                 iter.next();
+    //             }
+    //         };
+    //     }
+    //     iter.next();
+    // }
     Ok(val)
 }
 
